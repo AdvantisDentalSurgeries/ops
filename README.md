@@ -36,3 +36,15 @@ npm run seed:demo
 ```
 
 The script only removes previously seeded demo users in the `@demo.dental.local` domain and their related records before recreating them.
+
+## Frontend API base URL
+
+The frontend reads its API base URL from `frontend/.env` using `VITE_API_BASE_URL`.
+
+Use `frontend/.env.example` as a starting point:
+
+```bash
+VITE_API_BASE_URL=
+```
+
+Leave it empty for local development with the Vite `/api` proxy, or set it to a full backend URL such as `https://api.example.com`.
