@@ -1,10 +1,28 @@
 import nodemailer from 'nodemailer';
-import { Appointment, Dentist, Patient, Surgery } from '@prisma/client';
 
-type AppointmentForEmail = Appointment & {
-  dentist: Dentist & { surgery: Surgery };
-  patient: Patient;
-};
+interface Surgery {
+  name: string;
+  address: string;
+  phone: string;
+}
+
+interface DentistForEmail {
+  firstName: string;
+  lastName: string;
+  specialization: string;
+  surgeryId: Surgery;
+}
+
+interface PatientForEmail {
+  firstName: string;
+  lastName: string;
+}
+
+export interface AppointmentForEmail {
+  dateTime: Date;
+  dentistId: DentistForEmail;
+  patientId: PatientForEmail;
+}
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -19,7 +37,8 @@ export async function sendConfirmationToEmail(
   email: string,
   appointment: AppointmentForEmail
 ): Promise<void> {
-  const { patient, dentist, dateTime } = appointment;
+  const { patientId: patient, dentistId: dentist, dateTime } = appointment;
+  const surgery = dentist.surgeryId;
   const formattedDate = new Date(dateTime).toLocaleString('en-US', {
     dateStyle: 'full',
     timeStyle: 'short',
@@ -34,8 +53,8 @@ export async function sendConfirmationToEmail(
       '',
       `Your appointment has been confirmed for ${formattedDate}.`,
       `Dentist: Dr. ${dentist.firstName} ${dentist.lastName} (${dentist.specialization})`,
-      `Location: ${dentist.surgery.name}, ${dentist.surgery.address}`,
-      `Phone: ${dentist.surgery.phone}`,
+      `Location: ${surgery.name}, ${surgery.address}`,
+      `Phone: ${surgery.phone}`,
       '',
       'Please arrive 10 minutes before your scheduled time.',
     ].join('\n'),

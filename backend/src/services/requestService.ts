@@ -1,12 +1,12 @@
-import { RequestType } from '@prisma/client';
-import { prisma } from '../lib/prisma';
+import { AppointmentRequest } from '../models/AppointmentRequest';
 import { hasUnpaidBills } from './patientService';
+import type { RequestType } from '../types';
 
 export async function getRequests() {
-  return prisma.appointmentRequest.findMany({
-    include: { patient: { include: { user: true } }, appointment: true },
-    orderBy: { createdAt: 'desc' },
-  });
+  return AppointmentRequest.find()
+    .populate({ path: 'patientId', populate: { path: 'userId' } })
+    .populate('appointmentId')
+    .sort({ createdAt: -1 });
 }
 
 export async function createRequest(data: {
@@ -19,8 +19,6 @@ export async function createRequest(data: {
     throw new Error('UNPAID_BILL');
   }
 
-  return prisma.appointmentRequest.create({
-    data,
-    include: { patient: true },
-  });
+  const req = await AppointmentRequest.create(data);
+  return req.populate('patientId');
 }

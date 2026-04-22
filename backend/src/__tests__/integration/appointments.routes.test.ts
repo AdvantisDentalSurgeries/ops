@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../../app';
-import { prisma } from '../../lib/prisma';
 import { verifyToken } from '../../middleware/verifyToken';
 
 vi.mock('../../middleware/verifyToken', () => ({
@@ -11,38 +10,51 @@ vi.mock('../../middleware/verifyToken', () => ({
   }),
 }));
 
-vi.mock('../../lib/prisma', () => ({
-  prisma: {
-    appointment: {
-      count: vi.fn(),
-      create: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-      findMany: vi.fn(),
-    },
-    dentist: { findUnique: vi.fn() },
-    patient: { findUnique: vi.fn() },
-    bill: { count: vi.fn() },
-    appointmentRequest: { create: vi.fn(), findMany: vi.fn() },
+vi.mock('../../models/Appointment', () => ({
+  Appointment: {
+    countDocuments: vi.fn(),
+    create: vi.fn(),
+    findById: vi.fn(),
+    findByIdAndUpdate: vi.fn(),
+    find: vi.fn(),
   },
+}));
+
+vi.mock('../../models/Dentist', () => ({
+  Dentist: { findOne: vi.fn() },
+}));
+
+vi.mock('../../models/Patient', () => ({
+  Patient: { findOne: vi.fn() },
+}));
+
+vi.mock('../../models/Bill', () => ({
+  Bill: { countDocuments: vi.fn() },
+}));
+
+vi.mock('../../models/AppointmentRequest', () => ({
+  AppointmentRequest: { create: vi.fn(), find: vi.fn() },
 }));
 
 vi.mock('../../services/emailService', () => ({
   sendConfirmationToEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { Appointment } from '../../models/Appointment';
+import { Dentist } from '../../models/Dentist';
+import { Patient } from '../../models/Patient';
+
 const mockVerifyToken = verifyToken as ReturnType<typeof vi.fn>;
-const mockFindMany = prisma.appointment.findMany as ReturnType<typeof vi.fn>;
-const mockCount = prisma.appointment.count as ReturnType<typeof vi.fn>;
-const mockCreate = prisma.appointment.create as ReturnType<typeof vi.fn>;
-const mockFindUnique = prisma.appointment.findUnique as ReturnType<typeof vi.fn>;
-const mockUpdate = prisma.appointment.update as ReturnType<typeof vi.fn>;
-const mockDentistFindUnique = prisma.dentist.findUnique as ReturnType<typeof vi.fn>;
-const mockPatientFindUnique = prisma.patient.findUnique as ReturnType<typeof vi.fn>;
+const mockFind = Appointment.find as ReturnType<typeof vi.fn>;
+const mockCountDocuments = Appointment.countDocuments as ReturnType<typeof vi.fn>;
+const mockCreate = Appointment.create as ReturnType<typeof vi.fn>;
+const mockFindById = Appointment.findById as ReturnType<typeof vi.fn>;
+const mockFindByIdAndUpdate = Appointment.findByIdAndUpdate as ReturnType<typeof vi.fn>;
+const mockDentistFindOne = Dentist.findOne as ReturnType<typeof vi.fn>;
+const mockPatientFindOne = Patient.findOne as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Reset verifyToken to default OFFICE_MANAGER identity
   mockVerifyToken.mockImplementation((req: any, _res: any, next: any) => {
     req.user = { id: 'user-mgr-1', email: 'mgr@test.com', role: 'OFFICE_MANAGER' };
     next();
@@ -54,7 +66,10 @@ beforeEach(() => {
 describe('GET /api/appointments', () => {
   it('returns 200 and an array for OFFICE_MANAGER', async () => {
     const fixture = [{ id: 'appt-1', dentistId: 'd1', patientId: 'p1' }];
-    mockFindMany.mockResolvedValue(fixture);
+    mockFind.mockReturnValue({
+      populate: vi.fn().mockReturnThis(),
+      sort: vi.fn().mockResolvedValue(fixture),
+    });
 
     const res = await request(app).get('/api/appointments');
     expect(res.status).toBe(200);
@@ -62,7 +77,10 @@ describe('GET /api/appointments', () => {
   });
 
   it('returns 200 and empty array when there are no appointments', async () => {
-    mockFindMany.mockResolvedValue([]);
+    mockFind.mockReturnValue({
+      populate: vi.fn().mockReturnThis(),
+      sort: vi.fn().mockResolvedValue([]),
+    });
 
     const res = await request(app).get('/api/appointments');
     expect(res.status).toBe(200);
@@ -74,17 +92,16 @@ describe('GET /api/appointments', () => {
       req.user = { id: 'user-dentist-1', email: 'd@test.com', role: 'DENTIST' };
       next();
     });
-    mockDentistFindUnique.mockResolvedValue({ id: 'dentist-1' });
-    mockFindMany.mockResolvedValue([]);
+    mockDentistFindOne.mockResolvedValue({ _id: 'dentist-1' });
+    mockFind.mockReturnValue({
+      populate: vi.fn().mockReturnThis(),
+      sort: vi.fn().mockResolvedValue([]),
+    });
 
     const res = await request(app).get('/api/appointments');
     expect(res.status).toBe(200);
-    expect(mockDentistFindUnique).toHaveBeenCalledWith({
-      where: { userId: 'user-dentist-1' },
-    });
-    expect(mockFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { dentistId: 'dentist-1' } })
-    );
+    expect(mockDentistFindOne).toHaveBeenCalledWith({ userId: 'user-dentist-1' });
+    expect(mockFind).toHaveBeenCalledWith({ dentistId: 'dentist-1' });
   });
 
   it('returns 200 and empty array when DENTIST has no profile', async () => {
@@ -92,7 +109,7 @@ describe('GET /api/appointments', () => {
       req.user = { id: 'user-dentist-x', email: 'd@test.com', role: 'DENTIST' };
       next();
     });
-    mockDentistFindUnique.mockResolvedValue(null);
+    mockDentistFindOne.mockResolvedValue(null);
 
     const res = await request(app).get('/api/appointments');
     expect(res.status).toBe(200);
@@ -109,12 +126,17 @@ describe('POST /api/appointments', () => {
     dateTime: '2026-05-01T09:00:00Z',
   };
 
+  const populatedFixture = {
+    id: 'appt-1',
+    dentistId: { surgeryId: {} },
+    patientId: { userId: { email: 'p@test.com' } },
+  };
+
   const appointmentFixture = {
     id: 'appt-1',
     dentistId: 'dentist-1',
     patientId: 'patient-1',
-    patient: { user: { email: 'p@test.com' } },
-    dentist: { surgery: {} },
+    populate: vi.fn().mockResolvedValue(populatedFixture),
   };
 
   it('returns 400 when dentistId is missing', async () => {
@@ -149,7 +171,7 @@ describe('POST /api/appointments', () => {
   });
 
   it('returns 201 and the appointment when booking succeeds', async () => {
-    mockCount.mockResolvedValue(0);
+    mockCountDocuments.mockResolvedValue(0);
     mockCreate.mockResolvedValue(appointmentFixture);
 
     const res = await request(app).post('/api/appointments').send(validBody);
@@ -158,15 +180,15 @@ describe('POST /api/appointments', () => {
   });
 
   it('returns 400 with the RangeError message when weekly limit is reached', async () => {
-    mockCount.mockResolvedValue(5);
+    mockCountDocuments.mockResolvedValue(5);
 
     const res = await request(app).post('/api/appointments').send(validBody);
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error', 'Dentist already has 5 appointments this week');
   });
 
-  it('returns 500 when prisma.appointment.create throws unexpectedly', async () => {
-    mockCount.mockResolvedValue(0);
+  it('returns 500 when Appointment.create throws unexpectedly', async () => {
+    mockCountDocuments.mockResolvedValue(0);
     mockCreate.mockRejectedValue(new Error('DB connection lost'));
 
     const res = await request(app).post('/api/appointments').send(validBody);
@@ -179,10 +201,8 @@ describe('POST /api/appointments', () => {
 describe('PUT /api/appointments/:id/cancel', () => {
   const baseAppointment = {
     id: 'appt-1',
-    dentistId: 'dentist-1',
-    patientId: 'patient-1',
-    dentist: { id: 'dentist-1' },
-    patient: { id: 'patient-1' },
+    dentistId: { toString: () => 'dentist-1' },
+    patientId: { toString: () => 'patient-1' },
   };
 
   it('returns 403 when user is OFFICE_MANAGER (route requires DENTIST or PATIENT)', async () => {
@@ -195,8 +215,10 @@ describe('PUT /api/appointments/:id/cancel', () => {
       req.user = { id: 'user-dentist-1', email: 'd@test.com', role: 'DENTIST' };
       next();
     });
-    mockFindUnique.mockResolvedValue(null);
-    mockDentistFindUnique.mockResolvedValue({ id: 'dentist-1' });
+    mockFindById.mockReturnValue({
+      populate: vi.fn().mockReturnValue({ populate: vi.fn().mockResolvedValue(null) }),
+    });
+    mockDentistFindOne.mockResolvedValue({ _id: { toString: () => 'dentist-1' } });
 
     const res = await request(app).put('/api/appointments/appt-999/cancel');
     expect(res.status).toBe(404);
@@ -208,8 +230,10 @@ describe('PUT /api/appointments/:id/cancel', () => {
       req.user = { id: 'user-dentist-1', email: 'd@test.com', role: 'DENTIST' };
       next();
     });
-    mockFindUnique.mockResolvedValue(baseAppointment);
-    mockDentistFindUnique.mockResolvedValue({ id: 'dentist-OTHER' });
+    mockFindById.mockReturnValue({
+      populate: vi.fn().mockReturnValue({ populate: vi.fn().mockResolvedValue(baseAppointment) }),
+    });
+    mockDentistFindOne.mockResolvedValue({ _id: { toString: () => 'dentist-OTHER' } });
 
     const res = await request(app).put('/api/appointments/appt-1/cancel');
     expect(res.status).toBe(403);
@@ -221,9 +245,11 @@ describe('PUT /api/appointments/:id/cancel', () => {
       req.user = { id: 'user-dentist-1', email: 'd@test.com', role: 'DENTIST' };
       next();
     });
-    mockFindUnique.mockResolvedValue(baseAppointment);
-    mockDentistFindUnique.mockResolvedValue({ id: 'dentist-1' });
-    mockUpdate.mockResolvedValue({ ...baseAppointment, status: 'CANCELLED' });
+    mockFindById.mockReturnValue({
+      populate: vi.fn().mockReturnValue({ populate: vi.fn().mockResolvedValue(baseAppointment) }),
+    });
+    mockDentistFindOne.mockResolvedValue({ _id: { toString: () => 'dentist-1' } });
+    mockFindByIdAndUpdate.mockResolvedValue({ ...baseAppointment, status: 'CANCELLED' });
 
     const res = await request(app).put('/api/appointments/appt-1/cancel');
     expect(res.status).toBe(200);
@@ -235,9 +261,11 @@ describe('PUT /api/appointments/:id/cancel', () => {
       req.user = { id: 'user-patient-1', email: 'p@test.com', role: 'PATIENT' };
       next();
     });
-    mockFindUnique.mockResolvedValue(baseAppointment);
-    mockPatientFindUnique.mockResolvedValue({ id: 'patient-1' });
-    mockUpdate.mockResolvedValue({ ...baseAppointment, status: 'CANCELLED' });
+    mockFindById.mockReturnValue({
+      populate: vi.fn().mockReturnValue({ populate: vi.fn().mockResolvedValue(baseAppointment) }),
+    });
+    mockPatientFindOne.mockResolvedValue({ _id: { toString: () => 'patient-1' } });
+    mockFindByIdAndUpdate.mockResolvedValue({ ...baseAppointment, status: 'CANCELLED' });
 
     const res = await request(app).put('/api/appointments/appt-1/cancel');
     expect(res.status).toBe(200);

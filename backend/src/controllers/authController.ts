@@ -1,40 +1,45 @@
 import { Request, Response } from "express";
-import { Role } from "@prisma/client";
-import { prisma } from "../lib/prisma";
-import { supabaseAdmin } from "../lib/supabase";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { User } from "../models/User";
 import { registerDentist } from "../services/dentistService";
 import { enrollPatient } from "../services/patientService";
 import { AuthenticatedRequest } from "../types";
 
 export async function login(req: Request, res: Response): Promise<void> {
-  const { email, password } = req.body as { email: string; password: string };
+  try {
+    const { email, password } = req.body as { email: string; password: string };
 
-  if (!email || !password) {
-    res.status(400).json({ error: "email and password are required" });
-    return;
+    if (!email || !password) {
+      res.status(400).json({ error: "email and password are required" });
+      return;
+    }
+
+    const user = await User.findOne({ email }).select("+passwordHash");
+    if (!user) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+
+    console.log("user", user);
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+
+    const access_token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET!,
+      { expiresIn: "7d" }
+    );
+
+    res.json({ access_token, role: user.role, userId: user.id });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  const { data, error } = await supabaseAdmin.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (error || !data.session) {
-    res.status(401).json({ error: error?.message ?? "Invalid credentials" });
-    return;
-  }
-  console.log("Data", data);
-
-  const user = await prisma.user.findUnique({ where: { id: data.user.id } });
-  if (!user) {
-    res.status(401).json({ error: "User account not fully set up" });
-    return;
-  }
-
-  res.json({
-    access_token: data.session.access_token,
-    role: user.role,
-    userId: user.id,
-  });
 }
 
 export async function register(
@@ -66,39 +71,24 @@ export async function register(
     return;
   }
 
-  const { data: authData, error: authError } =
-    await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
-
-  if (authError || !authData.user) {
-    res
-      .status(400)
-      .json({ error: authError?.message ?? "Failed to create auth user" });
-    return;
-  }
-
-  const supabaseUid = authData.user.id;
+  let userId: string | undefined;
 
   try {
-    await prisma.user.create({
-      data: { id: supabaseUid, email, role: role as Role },
-    });
+    const passwordHash = await bcrypt.hash(password, 12);
+    const user = await User.create({ email, passwordHash, role });
+    userId = user.id;
 
     let result;
     if (role === "DENTIST") {
       if (!profile.specialization || !profile.surgeryId) {
-        res
-          .status(400)
-          .json({
-            error: "specialization and surgeryId are required for dentists",
-          });
+        res.status(400).json({
+          error: "specialization and surgeryId are required for dentists",
+        });
+        await User.findByIdAndDelete(userId);
         return;
       }
       result = await registerDentist({
-        userId: supabaseUid,
+        userId,
         firstName: profile.firstName,
         lastName: profile.lastName,
         phone: profile.phone,
@@ -107,13 +97,14 @@ export async function register(
       });
     } else {
       if (!profile.address || !profile.dateOfBirth) {
-        res
-          .status(400)
-          .json({ error: "address and dateOfBirth are required for patients" });
+        res.status(400).json({
+          error: "address and dateOfBirth are required for patients",
+        });
+        await User.findByIdAndDelete(userId);
         return;
       }
       result = await enrollPatient({
-        userId: supabaseUid,
+        userId,
         firstName: profile.firstName,
         lastName: profile.lastName,
         phone: profile.phone,
@@ -124,9 +115,10 @@ export async function register(
 
     res.status(201).json(result);
   } catch (err) {
-    // Roll back Supabase auth user if DB write fails
-    await supabaseAdmin.auth.admin.deleteUser(supabaseUid);
-    console.error("Registration failed, rolled back auth user:", err);
+    if (userId) {
+      await User.findByIdAndDelete(userId).catch(() => {});
+    }
+    console.error("Registration failed, rolled back user:", err);
     res.status(500).json({ error: "Registration failed" });
   }
 }

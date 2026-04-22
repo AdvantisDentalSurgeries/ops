@@ -1,17 +1,15 @@
-import { prisma } from '../lib/prisma';
+import { Bill } from '../models/Bill';
 
 export async function getBillsByPatient(patientId: string) {
-  return prisma.bill.findMany({
-    where: { patientId },
-    include: { appointment: { include: { dentist: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
+  return Bill.find({ patientId })
+    .populate({ path: 'appointmentId', populate: { path: 'dentistId' } })
+    .sort({ createdAt: -1 });
 }
 
 export async function markPaid(billId: string) {
-  const bill = await prisma.bill.findUnique({ where: { id: billId } });
+  const bill = await Bill.findById(billId);
   if (!bill) throw new Error('Bill not found');
-  return prisma.bill.update({ where: { id: billId }, data: { isPaid: true } });
+  return Bill.findByIdAndUpdate(billId, { isPaid: true }, { new: true });
 }
 
 export async function createBill(data: {
@@ -20,5 +18,5 @@ export async function createBill(data: {
   amount: number;
   dueDate: Date;
 }) {
-  return prisma.bill.create({ data: { ...data, amount: data.amount } });
+  return Bill.create(data);
 }

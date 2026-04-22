@@ -1,17 +1,16 @@
-import { prisma } from '../lib/prisma';
+import { Patient } from '../models/Patient';
+import { Bill } from '../models/Bill';
 
 export async function hasUnpaidBills(patientId: string): Promise<boolean> {
-  const count = await prisma.bill.count({
-    where: { patientId, isPaid: false },
-  });
+  const count = await Bill.countDocuments({ patientId, isPaid: false });
   return count > 0;
 }
 
 export async function getPatients() {
-  return prisma.patient.findMany({
-    include: { user: true, bills: true },
-    orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-  });
+  return Patient.find()
+    .populate('userId')
+    .populate('bills')
+    .sort({ lastName: 1, firstName: 1 });
 }
 
 export async function enrollPatient(data: {
@@ -22,5 +21,6 @@ export async function enrollPatient(data: {
   address: string;
   dateOfBirth: Date;
 }) {
-  return prisma.patient.create({ data, include: { user: true } });
+  const patient = await Patient.create(data);
+  return patient.populate('userId');
 }

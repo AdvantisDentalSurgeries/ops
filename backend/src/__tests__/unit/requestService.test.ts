@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { prisma } from '../../lib/prisma';
 import { hasUnpaidBills } from '../../services/patientService';
 import { createRequest } from '../../services/requestService';
 
-vi.mock('../../lib/prisma', () => ({
-  prisma: {
-    appointmentRequest: { create: vi.fn(), findMany: vi.fn() },
+vi.mock('../../models/AppointmentRequest', () => ({
+  AppointmentRequest: {
+    create: vi.fn(),
+    find: vi.fn(),
   },
 }));
 
@@ -13,8 +13,10 @@ vi.mock('../../services/patientService', () => ({
   hasUnpaidBills: vi.fn(),
 }));
 
+import { AppointmentRequest } from '../../models/AppointmentRequest';
+
 const mockHasUnpaidBills = hasUnpaidBills as ReturnType<typeof vi.fn>;
-const mockRequestCreate = prisma.appointmentRequest.create as ReturnType<typeof vi.fn>;
+const mockRequestCreate = AppointmentRequest.create as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -32,7 +34,7 @@ describe('createRequest', () => {
     await expect(createRequest(validInput)).rejects.toThrow('UNPAID_BILL');
   });
 
-  it('does not call prisma.appointmentRequest.create when patient has unpaid bills', async () => {
+  it('does not call AppointmentRequest.create when patient has unpaid bills', async () => {
     mockHasUnpaidBills.mockResolvedValue(true);
     await expect(createRequest(validInput)).rejects.toThrow();
     expect(mockRequestCreate).not.toHaveBeenCalled();
@@ -40,21 +42,24 @@ describe('createRequest', () => {
 
   it('creates the request with correct data when no unpaid bills', async () => {
     mockHasUnpaidBills.mockResolvedValue(false);
-    const fixture = { id: 'req-1', ...validInput, patient: {} };
-    mockRequestCreate.mockResolvedValue(fixture);
+    const populateFixture = { id: 'req-1', ...validInput, patientId: {} };
+    mockRequestCreate.mockResolvedValue({
+      ...populateFixture,
+      populate: vi.fn().mockResolvedValue(populateFixture),
+    });
 
     await createRequest(validInput);
 
-    expect(mockRequestCreate).toHaveBeenCalledWith({
-      data: validInput,
-      include: { patient: true },
-    });
+    expect(mockRequestCreate).toHaveBeenCalledWith(validInput);
   });
 
   it('returns the created request on success', async () => {
     mockHasUnpaidBills.mockResolvedValue(false);
-    const fixture = { id: 'req-1', ...validInput, patient: {} };
-    mockRequestCreate.mockResolvedValue(fixture);
+    const fixture = { id: 'req-1', ...validInput, patientId: {} };
+    mockRequestCreate.mockResolvedValue({
+      ...fixture,
+      populate: vi.fn().mockResolvedValue(fixture),
+    });
 
     const result = await createRequest(validInput);
     expect(result).toEqual(fixture);
@@ -63,13 +68,16 @@ describe('createRequest', () => {
   it('accepts ONLINE as a valid requestType', async () => {
     mockHasUnpaidBills.mockResolvedValue(false);
     const input = { ...validInput, requestType: 'ONLINE' as const };
-    const fixture = { id: 'req-2', ...input, patient: {} };
-    mockRequestCreate.mockResolvedValue(fixture);
+    const fixture = { id: 'req-2', ...input, patientId: {} };
+    mockRequestCreate.mockResolvedValue({
+      ...fixture,
+      populate: vi.fn().mockResolvedValue(fixture),
+    });
 
     const result = await createRequest(input);
     expect(result).toEqual(fixture);
     expect(mockRequestCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ requestType: 'ONLINE' }) })
+      expect.objectContaining({ requestType: 'ONLINE' })
     );
   });
 });

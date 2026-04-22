@@ -1,5 +1,6 @@
-import { AppointmentStatus } from '@prisma/client';
-import { prisma } from '../lib/prisma';
+import { Appointment } from '../models/Appointment';
+import { Dentist } from '../models/Dentist';
+import { Patient } from '../models/Patient';
 import { sendConfirmationToEmail } from './emailService';
 
 function getIsoWeekBounds(date: Date): { start: Date; end: Date } {
@@ -17,54 +18,38 @@ function getIsoWeekBounds(date: Date): { start: Date; end: Date } {
 
 export async function isWeeklyLimitReached(dentistId: string, date: Date): Promise<boolean> {
   const { start, end } = getIsoWeekBounds(date);
-  const count = await prisma.appointment.count({
-    where: {
-      dentistId,
-      dateTime: { gte: start, lte: end },
-      status: { not: AppointmentStatus.CANCELLED },
-    },
+  const count = await Appointment.countDocuments({
+    dentistId,
+    dateTime: { $gte: start, $lte: end },
+    status: { $ne: 'CANCELLED' },
   });
   return count >= 5;
 }
 
 export async function getAppointments(userId: string, role: string) {
   if (role === 'OFFICE_MANAGER') {
-    return prisma.appointment.findMany({
-      include: {
-        dentist: { include: { surgery: true, user: true } },
-        patient: { include: { user: true } },
-        bill: true,
-      },
-      orderBy: { dateTime: 'asc' },
-    });
+    return Appointment.find()
+      .populate({ path: 'dentistId', populate: [{ path: 'surgeryId' }, { path: 'userId' }] })
+      .populate({ path: 'patientId', populate: { path: 'userId' } })
+      .sort({ dateTime: 1 });
   }
 
   if (role === 'DENTIST') {
-    const dentist = await prisma.dentist.findUnique({ where: { userId } });
+    const dentist = await Dentist.findOne({ userId });
     if (!dentist) return [];
-    return prisma.appointment.findMany({
-      where: { dentistId: dentist.id },
-      include: {
-        dentist: { include: { surgery: true } },
-        patient: { include: { user: true } },
-        bill: true,
-      },
-      orderBy: { dateTime: 'asc' },
-    });
+    return Appointment.find({ dentistId: dentist._id })
+      .populate({ path: 'dentistId', populate: { path: 'surgeryId' } })
+      .populate({ path: 'patientId', populate: { path: 'userId' } })
+      .sort({ dateTime: 1 });
   }
 
   // PATIENT
-  const patient = await prisma.patient.findUnique({ where: { userId } });
+  const patient = await Patient.findOne({ userId });
   if (!patient) return [];
-  return prisma.appointment.findMany({
-    where: { patientId: patient.id },
-    include: {
-      dentist: { include: { surgery: true, user: true } },
-      patient: true,
-      bill: true,
-    },
-    orderBy: { dateTime: 'asc' },
-  });
+  return Appointment.find({ patientId: patient._id })
+    .populate({ path: 'dentistId', populate: [{ path: 'surgeryId' }, { path: 'userId' }] })
+    .populate('patientId')
+    .sort({ dateTime: 1 });
 }
 
 export async function bookAppointment(data: {
@@ -79,49 +64,48 @@ export async function bookAppointment(data: {
     throw new RangeError('Dentist already has 5 appointments this week');
   }
 
-  const appointment = await prisma.appointment.create({
-    data: {
-      dentistId: data.dentistId,
-      patientId: data.patientId,
-      dateTime: data.dateTime,
-      notes: data.notes,
-      ...(data.requestId && {
-        request: { connect: { id: data.requestId } },
-      }),
-    },
-    include: {
-      dentist: { include: { surgery: true } },
-      patient: { include: { user: true } },
-    },
+  const appointment = await Appointment.create({
+    dentistId: data.dentistId,
+    patientId: data.patientId,
+    dateTime: data.dateTime,
+    notes: data.notes,
+    ...(data.requestId && { appointmentRequestId: data.requestId }),
   });
 
-  const patientEmail = appointment.patient.user.email;
-  sendConfirmationToEmail(patientEmail, appointment).catch(() => {
-    // Non-fatal: email delivery failure should not roll back the booking
-  });
+  const populated = await appointment.populate([
+    { path: 'dentistId', populate: { path: 'surgeryId' } },
+    { path: 'patientId', populate: { path: 'userId' } },
+  ]);
 
-  return appointment;
+  const patientEmail = (populated.patientId as any).userId?.email;
+  if (patientEmail) {
+    sendConfirmationToEmail(patientEmail, populated).catch(() => {
+      // Non-fatal: email delivery failure should not roll back the booking
+    });
+  }
+
+  return populated;
 }
 
 export async function cancelAppointment(id: string, userId: string, role: string) {
-  const appointment = await prisma.appointment.findUnique({
-    where: { id },
-    include: { dentist: true, patient: true },
-  });
+  const appointment = await Appointment.findById(id)
+    .populate('dentistId')
+    .populate('patientId');
   if (!appointment) throw new Error('Appointment not found');
 
   if (role === 'DENTIST') {
-    const dentist = await prisma.dentist.findUnique({ where: { userId } });
-    if (!dentist || dentist.id !== appointment.dentistId) throw new Error('Forbidden');
+    const dentist = await Dentist.findOne({ userId });
+    if (!dentist || dentist._id.toString() !== appointment.dentistId.toString()) {
+      throw new Error('Forbidden');
+    }
   } else if (role === 'PATIENT') {
-    const patient = await prisma.patient.findUnique({ where: { userId } });
-    if (!patient || patient.id !== appointment.patientId) throw new Error('Forbidden');
+    const patient = await Patient.findOne({ userId });
+    if (!patient || patient._id.toString() !== appointment.patientId.toString()) {
+      throw new Error('Forbidden');
+    }
   }
 
-  return prisma.appointment.update({
-    where: { id },
-    data: { status: AppointmentStatus.CANCELLED },
-  });
+  return Appointment.findByIdAndUpdate(id, { status: 'CANCELLED' }, { new: true });
 }
 
 export async function rescheduleAppointment(
@@ -130,27 +114,27 @@ export async function rescheduleAppointment(
   userId: string,
   role: string
 ) {
-  const appointment = await prisma.appointment.findUnique({
-    where: { id },
-    include: { dentist: true, patient: true },
-  });
+  const appointment = await Appointment.findById(id)
+    .populate('dentistId')
+    .populate('patientId');
   if (!appointment) throw new Error('Appointment not found');
 
   if (role === 'DENTIST') {
-    const dentist = await prisma.dentist.findUnique({ where: { userId } });
-    if (!dentist || dentist.id !== appointment.dentistId) throw new Error('Forbidden');
+    const dentist = await Dentist.findOne({ userId });
+    if (!dentist || dentist._id.toString() !== appointment.dentistId.toString()) {
+      throw new Error('Forbidden');
+    }
   } else if (role === 'PATIENT') {
-    const patient = await prisma.patient.findUnique({ where: { userId } });
-    if (!patient || patient.id !== appointment.patientId) throw new Error('Forbidden');
+    const patient = await Patient.findOne({ userId });
+    if (!patient || patient._id.toString() !== appointment.patientId.toString()) {
+      throw new Error('Forbidden');
+    }
   }
 
-  const limitReached = await isWeeklyLimitReached(appointment.dentistId, newDateTime);
+  const limitReached = await isWeeklyLimitReached(appointment.dentistId.toString(), newDateTime);
   if (limitReached) {
     throw new RangeError('Dentist already has 5 appointments in the target week');
   }
 
-  return prisma.appointment.update({
-    where: { id },
-    data: { dateTime: newDateTime },
-  });
+  return Appointment.findByIdAndUpdate(id, { dateTime: newDateTime }, { new: true });
 }

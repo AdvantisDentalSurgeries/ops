@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../../app';
-import { prisma } from '../../lib/prisma';
 import { verifyToken } from '../../middleware/verifyToken';
 
 vi.mock('../../middleware/verifyToken', () => ({
@@ -11,26 +10,40 @@ vi.mock('../../middleware/verifyToken', () => ({
   }),
 }));
 
-vi.mock('../../lib/prisma', () => ({
-  prisma: {
-    appointment: {
-      count: vi.fn(),
-      create: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-      findMany: vi.fn(),
-    },
-    dentist: { findUnique: vi.fn() },
-    patient: { findUnique: vi.fn() },
-    bill: { count: vi.fn() },
-    appointmentRequest: { create: vi.fn(), findMany: vi.fn() },
+vi.mock('../../models/Appointment', () => ({
+  Appointment: {
+    countDocuments: vi.fn(),
+    create: vi.fn(),
+    findById: vi.fn(),
+    findByIdAndUpdate: vi.fn(),
+    find: vi.fn(),
   },
 }));
 
+vi.mock('../../models/Dentist', () => ({
+  Dentist: { findOne: vi.fn() },
+}));
+
+vi.mock('../../models/Patient', () => ({
+  Patient: { findOne: vi.fn() },
+}));
+
+vi.mock('../../models/Bill', () => ({
+  Bill: { countDocuments: vi.fn() },
+}));
+
+vi.mock('../../models/AppointmentRequest', () => ({
+  AppointmentRequest: { create: vi.fn(), find: vi.fn() },
+}));
+
+import { Patient } from '../../models/Patient';
+import { Bill } from '../../models/Bill';
+import { AppointmentRequest } from '../../models/AppointmentRequest';
+
 const mockVerifyToken = verifyToken as ReturnType<typeof vi.fn>;
-const mockPatientFindUnique = prisma.patient.findUnique as ReturnType<typeof vi.fn>;
-const mockBillCount = prisma.bill.count as ReturnType<typeof vi.fn>;
-const mockRequestCreate = prisma.appointmentRequest.create as ReturnType<typeof vi.fn>;
+const mockPatientFindOne = Patient.findOne as ReturnType<typeof vi.fn>;
+const mockBillCount = Bill.countDocuments as ReturnType<typeof vi.fn>;
+const mockRequestCreate = AppointmentRequest.create as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -54,7 +67,7 @@ describe('POST /api/requests', () => {
     patientId: 'patient-1',
     requestType: 'PHONE',
     requestedDate: new Date('2026-05-15T09:00:00Z'),
-    patient: patientFixture,
+    patientId_populated: patientFixture,
   };
 
   it('returns 403 when user is OFFICE_MANAGER (route requires PATIENT)', async () => {
@@ -87,7 +100,7 @@ describe('POST /api/requests', () => {
   });
 
   it('returns 404 when no patient profile exists for the user', async () => {
-    mockPatientFindUnique.mockResolvedValue(null);
+    mockPatientFindOne.mockResolvedValue(null);
 
     const res = await request(app).post('/api/requests').send(validBody);
     expect(res.status).toBe(404);
@@ -95,7 +108,7 @@ describe('POST /api/requests', () => {
   });
 
   it('returns 403 with unpaid-bill error when patient has outstanding bills', async () => {
-    mockPatientFindUnique.mockResolvedValue(patientFixture);
+    mockPatientFindOne.mockResolvedValue(patientFixture);
     mockBillCount.mockResolvedValue(1);
 
     const res = await request(app).post('/api/requests').send(validBody);
@@ -107,9 +120,15 @@ describe('POST /api/requests', () => {
   });
 
   it('returns 201 and the created request when all conditions are met', async () => {
-    mockPatientFindUnique.mockResolvedValue(patientFixture);
+    mockPatientFindOne.mockResolvedValue(patientFixture);
     mockBillCount.mockResolvedValue(0);
-    mockRequestCreate.mockResolvedValue(requestFixture);
+    const createdReq = {
+      id: 'req-1',
+      patientId: 'patient-1',
+      requestType: 'PHONE',
+      populate: vi.fn().mockResolvedValue({ id: 'req-1', patientId: 'patient-1', requestType: 'PHONE' }),
+    };
+    mockRequestCreate.mockResolvedValue(createdReq);
 
     const res = await request(app).post('/api/requests').send(validBody);
     expect(res.status).toBe(201);

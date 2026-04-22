@@ -1,15 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { prisma } from '../../lib/prisma';
 import { hasUnpaidBills } from '../../services/patientService';
 
-vi.mock('../../lib/prisma', () => ({
-  prisma: {
-    bill: { count: vi.fn() },
-    patient: { findMany: vi.fn(), create: vi.fn() },
+vi.mock('../../models/Bill', () => ({
+  Bill: { countDocuments: vi.fn() },
+}));
+
+vi.mock('../../models/Patient', () => ({
+  Patient: {
+    find: vi.fn(),
+    create: vi.fn(),
+    findOne: vi.fn(),
   },
 }));
 
-const mockBillCount = prisma.bill.count as ReturnType<typeof vi.fn>;
+import { Bill } from '../../models/Bill';
+
+const mockBillCount = Bill.countDocuments as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -34,8 +40,6 @@ describe('hasUnpaidBills', () => {
   it('queries with correct patientId and isPaid: false filter', async () => {
     mockBillCount.mockResolvedValue(0);
     await hasUnpaidBills('patient-42');
-    expect(mockBillCount).toHaveBeenCalledWith({
-      where: { patientId: 'patient-42', isPaid: false },
-    });
+    expect(mockBillCount).toHaveBeenCalledWith({ patientId: 'patient-42', isPaid: false });
   });
 });

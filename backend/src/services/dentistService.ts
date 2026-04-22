@@ -1,10 +1,10 @@
-import { prisma } from '../lib/prisma';
+import { Dentist } from '../models/Dentist';
 
 export async function getDentists() {
-  return prisma.dentist.findMany({
-    include: { user: true, surgery: true },
-    orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-  });
+  return Dentist.find()
+    .populate('userId')
+    .populate('surgeryId')
+    .sort({ lastName: 1, firstName: 1 });
 }
 
 export async function registerDentist(data: {
@@ -15,5 +15,6 @@ export async function registerDentist(data: {
   specialization: string;
   surgeryId: string;
 }) {
-  return prisma.dentist.create({ data, include: { user: true, surgery: true } });
+  const dentist = await Dentist.create(data);
+  return dentist.populate(['userId', 'surgeryId']);
 }

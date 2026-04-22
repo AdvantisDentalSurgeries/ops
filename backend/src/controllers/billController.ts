@@ -1,14 +1,14 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { getBillsByPatient, markPaid } from '../services/billService';
+import { Patient } from '../models/Patient';
 
 export async function getByPatient(req: AuthenticatedRequest, res: Response): Promise<void> {
   const { patientId } = req.params;
 
   // PATIENT role can only view their own bills
   if (req.user!.role === 'PATIENT') {
-    const { prisma } = await import('../lib/prisma');
-    const patient = await prisma.patient.findUnique({ where: { userId: req.user!.id } });
+    const patient = await Patient.findOne({ userId: req.user!.id });
     if (!patient || patient.id !== patientId) {
       res.status(403).json({ error: 'Forbidden' });
       return;

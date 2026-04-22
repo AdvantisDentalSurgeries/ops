@@ -1,8 +1,10 @@
 import { Response } from 'express';
-import { RequestType } from '@prisma/client';
 import { AuthenticatedRequest } from '../types';
+import type { RequestType } from '../types';
 import { createRequest, getRequests } from '../services/requestService';
-import { prisma } from '../lib/prisma';
+import { Patient } from '../models/Patient';
+
+const VALID_REQUEST_TYPES: RequestType[] = ['PHONE', 'ONLINE'];
 
 export async function list(_req: AuthenticatedRequest, res: Response): Promise<void> {
   const requests = await getRequests();
@@ -20,12 +22,12 @@ export async function create(req: AuthenticatedRequest, res: Response): Promise<
     return;
   }
 
-  if (!Object.values(RequestType).includes(requestType)) {
+  if (!VALID_REQUEST_TYPES.includes(requestType)) {
     res.status(400).json({ error: 'requestType must be PHONE or ONLINE' });
     return;
   }
 
-  const patient = await prisma.patient.findUnique({ where: { userId: req.user!.id } });
+  const patient = await Patient.findOne({ userId: req.user!.id });
   if (!patient) {
     res.status(404).json({ error: 'Patient profile not found' });
     return;

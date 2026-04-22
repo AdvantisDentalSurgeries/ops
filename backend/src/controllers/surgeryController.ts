@@ -1,9 +1,9 @@
 import { Response } from 'express';
-import { prisma } from '../lib/prisma';
+import { Surgery } from '../models/Surgery';
 import { AuthenticatedRequest } from '../types';
 
 export async function list(_req: AuthenticatedRequest, res: Response): Promise<void> {
-  const surgeries = await prisma.surgery.findMany({ orderBy: { name: 'asc' } });
+  const surgeries = await Surgery.find().sort({ name: 1 });
   res.json(surgeries);
 }
 
@@ -19,6 +19,6 @@ export async function create(req: AuthenticatedRequest, res: Response): Promise<
     return;
   }
 
-  const surgery = await prisma.surgery.create({ data: { name, address, phone } });
+  const surgery = await Surgery.create({ name, address, phone });
   res.status(201).json(surgery);
 }
