@@ -1,3 +1,56 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+out/
+.output/
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-error.log*
+
+# Runtime
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.parcel-cache/
+.turbo/
+.eslintcache
+.stylelintcache
+*.tgz
+
+# Vite
+.vite/
+
+# Prisma
+prisma/migrations/dev.db
+prisma/dev.db
+
 # macOS
 .DS_Store
 .AppleDouble
@@ -9,6 +62,6 @@
 *.swp
 *.swo
 
-# Environment
-.env
-.env.*
+# Bun
+.bun/
+bun.lockb

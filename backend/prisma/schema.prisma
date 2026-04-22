@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  OFFICE_MANAGER
+  DENTIST
+  PATIENT
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum RequestType {
+  PHONE
+  ONLINE
+}
+
+// id mirrors Supabase auth.users.id so no separate UUID is generated
+model User {
+  id        String   @id
+  email     String   @unique
+  role      Role
+  createdAt DateTime @default(now())
+  dentist   Dentist?
+  patient   Patient?
+}
+
+model Surgery {
+  id       String    @id @default(uuid())
+  name     String
+  address  String
+  phone    String
+  dentists Dentist[]
+}
+
+model Dentist {
+  id             String        @id @default(uuid())
+  userId         String        @unique
+  user           User          @relation(fields: [userId], references: [id])
+  firstName      String
+  lastName       String
+  phone          String
+  specialization String
+  surgeryId      String
+  surgery        Surgery       @relation(fields: [surgeryId], references: [id])
+  appointments   Appointment[]
+}
+
+model Patient {
+  id           String               @id @default(uuid())
+  userId       String               @unique
+  user         User                 @relation(fields: [userId], references: [id])
+  firstName    String
+  lastName     String
+  phone        String
+  address      String
+  dateOfBirth  DateTime
+  appointments Appointment[]
+  requests     AppointmentRequest[]
+  bills        Bill[]
+}
+
+model Appointment {
+  id        String            @id @default(uuid())
+  dentistId String
+  dentist   Dentist           @relation(fields: [dentistId], references: [id])
+  patientId String
+  patient   Patient           @relation(fields: [patientId], references: [id])
+  dateTime  DateTime
+  status    AppointmentStatus @default(SCHEDULED)
+  notes     String?
+  createdAt DateTime          @default(now())
+  bill      Bill?
+  request   AppointmentRequest?
+}
+
+model AppointmentRequest {
+  id            String       @id @default(uuid())
+  patientId     String
+  patient       Patient      @relation(fields: [patientId], references: [id])
+  requestType   RequestType
+  requestedDate DateTime
+  appointmentId String?      @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  createdAt     DateTime     @default(now())
+}
+
+model Bill {
+  id            String      @id @default(uuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  patientId     String
+  patient       Patient     @relation(fields: [patientId], references: [id])
+  amount        Decimal
+  isPaid        Boolean     @default(false)
+  dueDate       DateTime
+  createdAt     DateTime    @default(now())
+}
