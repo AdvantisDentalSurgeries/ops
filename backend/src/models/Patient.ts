@@ -8,6 +8,7 @@ export interface IPatient {
   phone: string;
   address: string;
   dateOfBirth: Date;
+  bills?: Types.ObjectId[];
 }
 
 const patientSchema = new Schema<IPatient>(
@@ -30,5 +31,11 @@ const patientSchema = new Schema<IPatient>(
     },
   }
 );
+
+patientSchema.virtual('bills', {
+  ref: 'Bill',
+  localField: '_id',
+  foreignField: 'patientId',
+});
 
 export const Patient = model<IPatient>('Patient', patientSchema);
