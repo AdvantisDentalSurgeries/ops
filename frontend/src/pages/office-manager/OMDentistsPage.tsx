@@ -1,8 +1,11 @@
 import { useState, useEffect, FormEvent } from 'react'
-import NavBar from '../../components/NavBar'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import ErrorBanner from '../../components/ErrorBanner'
 import Modal from '../../components/Modal'
+import PageHeader from '../../components/PageHeader'
+import Surface from '../../components/Surface'
+import StatCard from '../../components/StatCard'
+import EmptyState from '../../components/EmptyState'
 import { getDentists } from '../../api/dentists'
 import { getSurgeries } from '../../api/surgeries'
 import { registerApi } from '../../api/auth'
@@ -57,70 +60,81 @@ export default function OMDentistsPage() {
     required = true
   ) => (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="mb-2 block text-sm font-semibold text-slate-700">{label}</label>
       <input
         type={type}
         required={required}
         value={form[key]}
         onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
       />
     </div>
   )
 
+  const uniqueSurgeries = new Set(
+    dentists.map((dentist) => dentist.surgery?.id).filter(Boolean)
+  ).size
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar />
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Dentists</h1>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Staffing"
+        title="Dentist roster"
+        description="Register clinicians, confirm specializations, and keep surgery assignments visible at a glance."
+        actions={
           <button
             onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700"
+            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Register Dentist
           </button>
-        </div>
+        }
+      />
 
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Dentists" value={String(dentists.length)} hint="Active dentists currently available to book in the system." />
+        <StatCard label="Surgeries used" value={String(uniqueSurgeries)} hint="Distinct practice locations already assigned across the roster." />
+        <StatCard label="Locations loaded" value={String(surgeries.length)} hint="Available surgeries the office can assign during registration." />
+      </div>
+
+      <Surface>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
         {loading ? (
           <LoadingSpinner />
         ) : dentists.length === 0 ? (
-          <p className="text-gray-500 text-center py-12">No dentists registered yet.</p>
+          <EmptyState
+            title="No dentists registered yet"
+            description="Use the registration flow to add a dentist with specialization and surgery assignment."
+          />
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-xs uppercase tracking-[0.25em] text-slate-400">
                 <tr>
                   {['Name', 'Email', 'Phone', 'Specialization', 'Surgery', 'Address'].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
+                    <th key={h} className="px-4 py-3 font-semibold">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {dentists.map((d) => (
                   <tr key={d.id}>
-                    <td className="px-4 py-3 whitespace-nowrap font-medium">
+                    <td className="px-4 py-4 whitespace-nowrap font-medium text-slate-900">
                       {d.firstName} {d.lastName}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{d.user.email}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{d.phone}</td>
-                    <td className="px-4 py-3">{d.specialization}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{d.surgery.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{d.surgery.address}</td>
+                    <td className="px-4 py-4 text-slate-600">{d.user.email}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">{d.phone}</td>
+                    <td className="px-4 py-4">{d.specialization}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">{d.surgery.name}</td>
+                    <td className="px-4 py-4 text-slate-600">{d.surgery.address}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </main>
+      </Surface>
 
       <Modal
         isOpen={showModal}
@@ -140,14 +154,14 @@ export default function OMDentistsPage() {
           {field('Phone', 'phone')}
           {field('Specialization', 'specialization')}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Surgery</label>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">Surgery</label>
             <select
               required
               value={form.surgeryId}
               onChange={(e) => setForm((f) => ({ ...f, surgeryId: e.target.value }))}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
             >
-              <option value="">Select surgery…</option>
+              <option value="">Select surgery...</option>
               {surgeries.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -163,16 +177,16 @@ export default function OMDentistsPage() {
                 setFormError(null)
                 setForm(emptyForm())
               }}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={formLoading}
-              className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+              className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
-              {formLoading ? 'Registering…' : 'Register'}
+              {formLoading ? 'Registering...' : 'Register'}
             </button>
           </div>
         </form>

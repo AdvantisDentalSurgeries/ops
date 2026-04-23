@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 import api from '../lib/axios'
-import { AuthUser, Role, LoginResponse, Appointment } from '../types'
+import { AuthUser, Role, LoginResponse } from '../types'
 
 interface AuthContextValue {
   user: AuthUser | null
@@ -25,24 +25,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string): Promise<{ role: Role }> {
     const { data } = await api.post<LoginResponse>('/api/auth/login', { email, password })
-    const { access_token, role, userId } = data
+    const { access_token, role, userId, profileId } = data
 
-    const authUser: AuthUser = { token: access_token, role, userId, profileId: null }
+    const authUser: AuthUser = { token: access_token, role, userId, profileId }
 
     localStorage.setItem('token', access_token)
-
-    if (role === 'PATIENT') {
-      try {
-        const { data: appts } = await api.get<Appointment[]>('/api/appointments', {
-          headers: { Authorization: `Bearer ${access_token}` },
-        })
-        if (appts.length > 0 && appts[0].patient?.id) {
-          authUser.profileId = appts[0].patient.id
-        }
-      } catch {
-        // profileId stays null; PatientBillsPage resolves it lazily
-      }
-    }
 
     localStorage.setItem('auth', JSON.stringify(authUser))
     setUser(authUser)

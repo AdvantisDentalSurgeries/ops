@@ -1,13 +1,17 @@
 import { useState, useEffect, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import NavBar from '../../components/NavBar'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import ErrorBanner from '../../components/ErrorBanner'
 import Modal from '../../components/Modal'
+import PageHeader from '../../components/PageHeader'
+import Surface from '../../components/Surface'
+import StatCard from '../../components/StatCard'
+import EmptyState from '../../components/EmptyState'
 import { getPatients } from '../../api/patients'
 import { registerApi } from '../../api/auth'
 import { PatientProfile } from '../../types'
 import { extractError } from '../../lib/extractError'
+import { formatDate } from '../../lib/format'
 
 function emptyForm() {
   return { email: '', password: '', firstName: '', lastName: '', phone: '', address: '', dateOfBirth: '' }
@@ -57,83 +61,90 @@ export default function OMPatientsPage() {
     type = 'text'
   ) => (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="mb-2 block text-sm font-semibold text-slate-700">{label}</label>
       <input
         type={type}
         required
         value={form[key]}
         onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
       />
     </div>
   )
 
+  const unpaidPatients = patients.filter((patient) => patient.bills.some((bill) => !bill.isPaid)).length
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar />
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Patients</h1>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Patients"
+        title="Patient enrollment and billing readiness"
+        description="Bring new patients into the system and spot outstanding balances before they affect scheduling."
+        actions={
           <button
             onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700"
+            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Enroll Patient
           </button>
-        </div>
+        }
+      />
 
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Patients" value={String(patients.length)} hint="Currently enrolled patient profiles returned to the office." />
+        <StatCard label="With balances" value={String(unpaidPatients)} hint="Patients with at least one unpaid bill that may block new requests." />
+        <StatCard label="Clean standing" value={String(patients.length - unpaidPatients)} hint="Patients without unpaid balances on record." />
+      </div>
+
+      <Surface>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
         {loading ? (
           <LoadingSpinner />
         ) : patients.length === 0 ? (
-          <p className="text-gray-500 text-center py-12">No patients enrolled yet.</p>
+          <EmptyState
+            title="No patients enrolled yet"
+            description="Once a patient is enrolled by the office, their profile and billing signals will appear here."
+          />
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-xs uppercase tracking-[0.25em] text-slate-400">
                 <tr>
                   {['Name', 'Email', 'Phone', 'DOB', 'Address', 'Unpaid Bills', 'Actions'].map(
                     (h) => (
-                      <th
-                        key={h}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        {h}
-                      </th>
+                      <th key={h} className="px-4 py-3 font-semibold">{h}</th>
                     )
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {patients.map((p) => {
                   const unpaidCount = p.bills.filter((b) => !b.isPaid).length
                   return (
                     <tr key={p.id}>
-                      <td className="px-4 py-3 whitespace-nowrap font-medium">
+                      <td className="px-4 py-4 whitespace-nowrap font-medium text-slate-900">
                         {p.firstName} {p.lastName}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{p.user.email}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{p.phone}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {new Date(p.dateOfBirth).toLocaleDateString()}
+                      <td className="px-4 py-4 text-slate-600">{p.user.email}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">{p.phone}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        {formatDate(p.dateOfBirth)}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{p.address}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-4 text-slate-600">{p.address}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">
                         {unpaidCount > 0 ? (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                          <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-800">
                             {unpaidCount} unpaid
                           </span>
                         ) : (
-                          <span className="text-gray-400 text-xs">None</span>
+                          <span className="text-xs text-slate-400">None</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <button
-                          onClick={() =>
-                            navigate(`/om/bills?patientId=${p.id}`)
-                          }
-                          className="text-blue-600 hover:underline text-xs"
+                          onClick={() => navigate(`/om/bills?patientId=${p.id}`)}
+                          className="text-xs font-semibold text-teal-800 transition hover:text-teal-950"
                         >
                           View Bills
                         </button>
@@ -145,7 +156,7 @@ export default function OMPatientsPage() {
             </table>
           </div>
         )}
-      </main>
+      </Surface>
 
       <Modal
         isOpen={showModal}
@@ -173,16 +184,16 @@ export default function OMPatientsPage() {
                 setFormError(null)
                 setForm(emptyForm())
               }}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={formLoading}
-              className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+              className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
-              {formLoading ? 'Enrolling…' : 'Enroll'}
+              {formLoading ? 'Enrolling...' : 'Enroll'}
             </button>
           </div>
         </form>

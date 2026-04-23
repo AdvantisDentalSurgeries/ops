@@ -1,11 +1,15 @@
 import { useState, useEffect, FormEvent } from 'react'
-import NavBar from '../../components/NavBar'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import ErrorBanner from '../../components/ErrorBanner'
 import Modal from '../../components/Modal'
+import PageHeader from '../../components/PageHeader'
+import Surface from '../../components/Surface'
+import StatCard from '../../components/StatCard'
+import EmptyState from '../../components/EmptyState'
 import { getAppointments, cancelAppointment, rescheduleAppointment } from '../../api/appointments'
 import { Appointment } from '../../types'
 import { extractError } from '../../lib/extractError'
+import { formatDateTime } from '../../lib/format'
 
 const STATUS_BADGE: Record<string, string> = {
   SCHEDULED: 'bg-green-100 text-green-800',
@@ -67,60 +71,72 @@ export default function PatientAppointmentsPage() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar />
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">My Appointments</h1>
+  const scheduledCount = appointments.filter((appointment) => appointment.status === 'SCHEDULED').length
+  const cancelledCount = appointments.filter((appointment) => appointment.status === 'CANCELLED').length
 
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Visits"
+        title="My appointments"
+        description="See upcoming visits, make schedule changes, and keep track of surgery and dentist details from one place."
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Scheduled" value={String(scheduledCount)} hint="Upcoming visits currently active on your calendar." />
+        <StatCard label="Cancelled" value={String(cancelledCount)} hint="Previously cancelled appointments kept for reference." />
+        <StatCard label="Total" value={String(appointments.length)} hint="All appointments tied to your patient session." />
+      </div>
+
+      <Surface>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
         {loading ? (
           <LoadingSpinner />
         ) : appointments.length === 0 ? (
-          <p className="text-gray-500 text-center py-12">No appointments found.</p>
+          <EmptyState
+            title="No appointments booked"
+            description="Your upcoming and past appointments will appear here once the office creates them."
+          />
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-xs uppercase tracking-[0.25em] text-slate-400">
                 <tr>
                   {['Date & Time', 'Dentist', 'Surgery', 'Status', 'Notes', 'Actions'].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
+                    <th key={h} className="px-4 py-3 font-semibold">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {appointments.map((a) => (
                   <tr key={a.id}>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {new Date(a.dateTime).toLocaleString()}
+                    <td className="px-4 py-4 whitespace-nowrap font-medium text-slate-900">
+                      {formatDateTime(a.dateTime)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {a.dentist.firstName} {a.dentist.lastName}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      {a.dentist?.firstName ?? 'Unknown'} {a.dentist?.lastName ?? 'dentist'}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">{a.dentist.surgery.name}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-4 whitespace-nowrap text-slate-600">
+                      {a.dentist?.surgery?.name ?? 'Unassigned surgery'}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_BADGE[a.status]}`}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_BADGE[a.status]}`}
                       >
                         {a.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{a.notes ?? '—'}</td>
-                    <td className="px-4 py-3 whitespace-nowrap flex gap-3">
+                    <td className="max-w-xs px-4 py-4 text-slate-600">{a.notes ?? 'No notes'}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {a.status === 'SCHEDULED' && (
-                        <>
+                        <div className="flex gap-3">
                           <button
                             onClick={() => handleCancel(a.id)}
                             disabled={cancelLoading[a.id]}
-                            className="text-red-600 hover:underline text-xs disabled:opacity-50"
+                            className="text-xs font-semibold text-rose-700 transition hover:text-rose-900 disabled:opacity-50"
                           >
-                            {cancelLoading[a.id] ? 'Cancelling…' : 'Cancel'}
+                            {cancelLoading[a.id] ? 'Cancelling...' : 'Cancel'}
                           </button>
                           <button
                             onClick={() => {
@@ -128,11 +144,11 @@ export default function PatientAppointmentsPage() {
                               setNewDateTime('')
                               setRescheduleError(null)
                             }}
-                            className="text-blue-600 hover:underline text-xs"
+                            className="text-xs font-semibold text-teal-800 transition hover:text-teal-950"
                           >
                             Reschedule
                           </button>
-                        </>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -141,7 +157,7 @@ export default function PatientAppointmentsPage() {
             </table>
           </div>
         )}
-      </main>
+      </Surface>
 
       <Modal
         isOpen={rescheduleId !== null}
@@ -155,13 +171,13 @@ export default function PatientAppointmentsPage() {
         <form onSubmit={handleReschedule} className="space-y-4">
           <ErrorBanner message={rescheduleError} onDismiss={() => setRescheduleError(null)} />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">New Date & Time</label>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">New Date & Time</label>
             <input
               type="datetime-local"
               required
               value={newDateTime}
               onChange={(e) => setNewDateTime(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
@@ -172,16 +188,16 @@ export default function PatientAppointmentsPage() {
                 setRescheduleError(null)
                 setNewDateTime('')
               }}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={rescheduleLoading}
-              className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+              className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
-              {rescheduleLoading ? 'Saving…' : 'Confirm'}
+              {rescheduleLoading ? 'Saving...' : 'Confirm'}
             </button>
           </div>
         </form>

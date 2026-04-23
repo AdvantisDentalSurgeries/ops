@@ -1,7 +1,9 @@
 import { useState, FormEvent } from 'react'
 import { AxiosError } from 'axios'
-import NavBar from '../../components/NavBar'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageHeader from '../../components/PageHeader'
+import Surface from '../../components/Surface'
+import StatCard from '../../components/StatCard'
 import { submitRequest } from '../../api/requests'
 import { RequestType } from '../../types'
 
@@ -46,58 +48,64 @@ export default function PatientRequestPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar />
-      <main className="max-w-lg mx-auto px-6 py-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Request an Appointment</h1>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Request"
+        title="Request an appointment"
+        description="Tell the office how and when you’d prefer to be seen. We’ll keep the form simple and surface billing blockers clearly."
+      />
 
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Channel" value={form.requestType} hint="Choose whether the request should reflect an online form or phone call." />
+        <StatCard label="Preferred time" value={form.requestedDate ? 'Chosen' : 'Pending'} hint="Add your preferred date and time before submitting." />
+        <StatCard label="Submission" value={success ? 'Sent' : 'Ready'} hint="Successful requests reset the form and leave a visible confirmation." />
+      </div>
+
+      <Surface className="max-w-3xl">
         {success && (
-          <div className="bg-green-50 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
             Your appointment request has been submitted. The office will contact you to confirm.
           </div>
         )}
-
         <ErrorBanner
           message={error}
           onDismiss={() => setError(null)}
           variant={errorVariant}
         />
 
-        <div className="bg-white rounded-lg shadow p-6 mt-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Request Type</label>
-              <select
-                value={form.requestType}
-                onChange={(e) => setForm((f) => ({ ...f, requestType: e.target.value as RequestType }))}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              >
-                <option value="ONLINE">Online Form</option>
-                <option value="PHONE">Phone Call</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Preferred Date & Time
-              </label>
-              <input
-                type="datetime-local"
-                required
-                value={form.requestedDate}
-                onChange={(e) => setForm((f) => ({ ...f, requestedDate: e.target.value }))}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">Request Type</label>
+            <select
+              value={form.requestType}
+              onChange={(e) => setForm((f) => ({ ...f, requestType: e.target.value as RequestType }))}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
             >
-              {loading ? 'Submitting…' : 'Submit Request'}
-            </button>
-          </form>
-        </div>
-      </main>
+              <option value="ONLINE">Online Form</option>
+              <option value="PHONE">Phone Call</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Preferred Date & Time
+            </label>
+            <input
+              type="datetime-local"
+              required
+              value={form.requestedDate}
+              onChange={(e) => setForm((f) => ({ ...f, requestedDate: e.target.value }))}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+          >
+            {loading ? 'Submitting...' : 'Submit Request'}
+          </button>
+        </form>
+      </Surface>
     </div>
   )
 }

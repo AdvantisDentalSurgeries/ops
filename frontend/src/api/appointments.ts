@@ -1,8 +1,9 @@
 import api from '../lib/axios'
 import { Appointment } from '../types'
+import { normalizeAppointment } from './normalize'
 
 export const getAppointments = (): Promise<Appointment[]> =>
-  api.get<Appointment[]>('/api/appointments').then((r) => r.data)
+  api.get('/api/appointments').then((r) => r.data.map(normalizeAppointment))
 
 export const bookAppointment = (body: {
   dentistId: string
@@ -10,10 +11,10 @@ export const bookAppointment = (body: {
   dateTime: string
   notes?: string
 }): Promise<Appointment> =>
-  api.post<Appointment>('/api/appointments', body).then((r) => r.data)
+  api.post('/api/appointments', body).then((r) => normalizeAppointment(r.data))
 
 export const cancelAppointment = (id: string): Promise<Appointment> =>
-  api.put<Appointment>(`/api/appointments/${id}/cancel`).then((r) => r.data)
+  api.put(`/api/appointments/${id}/cancel`).then((r) => normalizeAppointment(r.data))
 
 export const rescheduleAppointment = (id: string, dateTime: string): Promise<Appointment> =>
-  api.put<Appointment>(`/api/appointments/${id}/reschedule`, { dateTime }).then((r) => r.data)
+  api.put(`/api/appointments/${id}/reschedule`, { dateTime }).then((r) => normalizeAppointment(r.data))

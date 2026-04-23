@@ -1,8 +1,11 @@
 import { useState, useEffect, FormEvent } from 'react'
-import NavBar from '../../components/NavBar'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import ErrorBanner from '../../components/ErrorBanner'
 import Modal from '../../components/Modal'
+import PageHeader from '../../components/PageHeader'
+import Surface from '../../components/Surface'
+import StatCard from '../../components/StatCard'
+import EmptyState from '../../components/EmptyState'
 import { getSurgeries, createSurgery } from '../../api/surgeries'
 import { Surgery } from '../../types'
 import { extractError } from '../../lib/extractError'
@@ -44,53 +47,60 @@ export default function OMSurgeriesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar />
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Surgeries</h1>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Locations"
+        title="Surgery directory"
+        description="Maintain the locations where dentists practice so scheduling and staffing stay grounded in real site data."
+        actions={
           <button
             onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700"
+            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Add Surgery
           </button>
-        </div>
+        }
+      />
 
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Locations" value={String(surgeries.length)} hint="Every listed surgery can be assigned to staff during registration." />
+        <StatCard label="Directory" value="Ready" hint="Addresses and phone numbers are visible for fast office reference." />
+        <StatCard label="Coverage" value="Live" hint="Keep the clinic footprint updated before bookings are made." />
+      </div>
+
+      <Surface>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
         {loading ? (
           <LoadingSpinner />
         ) : surgeries.length === 0 ? (
-          <p className="text-gray-500 text-center py-12">No surgeries found.</p>
+          <EmptyState
+            title="No surgeries found"
+            description="Add your first surgery location so dentists can be assigned to a valid practice site."
+          />
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-xs uppercase tracking-[0.25em] text-slate-400">
                 <tr>
                   {['Name', 'Address', 'Phone'].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
+                    <th key={h} className="px-4 py-3 font-semibold">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {surgeries.map((s) => (
                   <tr key={s.id}>
-                    <td className="px-4 py-3 font-medium">{s.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{s.address}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{s.phone}</td>
+                    <td className="px-4 py-4 font-medium text-slate-900">{s.name}</td>
+                    <td className="px-4 py-4 text-slate-600">{s.address}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">{s.phone}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </main>
+      </Surface>
 
       <Modal
         isOpen={showModal}
@@ -105,7 +115,7 @@ export default function OMSurgeriesPage() {
           <ErrorBanner message={formError} onDismiss={() => setFormError(null)} />
           {(['name', 'address', 'phone'] as const).map((key) => (
             <div key={key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+              <label className="mb-2 block text-sm font-semibold capitalize text-slate-700">
                 {key}
               </label>
               <input
@@ -113,7 +123,7 @@ export default function OMSurgeriesPage() {
                 required
                 value={form[key]}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
               />
             </div>
           ))}
@@ -125,16 +135,16 @@ export default function OMSurgeriesPage() {
                 setFormError(null)
                 setForm(emptyForm())
               }}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={formLoading}
-              className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+              className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
-              {formLoading ? 'Saving…' : 'Save'}
+              {formLoading ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>

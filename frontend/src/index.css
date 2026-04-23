@@ -1,3 +1,51 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --app-bg: #f6efe5;
+    --shell: rgba(244, 236, 226, 0.72);
+    --glow-teal: rgba(41, 156, 145, 0.18);
+    --glow-gold: rgba(232, 169, 74, 0.16);
+    --glow-rose: rgba(214, 117, 118, 0.12);
+  }
+
+  html {
+    background: var(--app-bg);
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.72), transparent 30%),
+      linear-gradient(180deg, #f8f2ea 0%, #f2e8dc 100%);
+    color: #0f172a;
+    font-family: 'Avenir Next', 'Montserrat', 'Segoe UI', sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+    letter-spacing: -0.02em;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}

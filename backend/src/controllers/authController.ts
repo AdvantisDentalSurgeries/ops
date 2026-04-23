@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User";
+import { Patient } from "../models/Patient";
+import { Dentist } from "../models/Dentist";
 import { registerDentist } from "../services/dentistService";
 import { enrollPatient } from "../services/patientService";
 import { AuthenticatedRequest } from "../types";
@@ -35,7 +37,19 @@ export async function login(req: Request, res: Response): Promise<void> {
       { expiresIn: "7d" }
     );
 
-    res.json({ access_token, role: user.role, userId: user.id });
+    const profile =
+      user.role === "PATIENT"
+        ? await Patient.findOne({ userId: user.id }).select("_id")
+        : user.role === "DENTIST"
+          ? await Dentist.findOne({ userId: user.id }).select("_id")
+          : null;
+
+    res.json({
+      access_token,
+      role: user.role,
+      userId: user.id,
+      profileId: profile?.id ?? null,
+    });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -88,7 +102,7 @@ export async function register(
         return;
       }
       result = await registerDentist({
-        userId,
+        userId: userId!,
         firstName: profile.firstName,
         lastName: profile.lastName,
         phone: profile.phone,
@@ -104,7 +118,7 @@ export async function register(
         return;
       }
       result = await enrollPatient({
-        userId,
+        userId: userId!,
         firstName: profile.firstName,
         lastName: profile.lastName,
         phone: profile.phone,

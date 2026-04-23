@@ -6,6 +6,7 @@ export interface LoginResponse {
   access_token: string
   role: Role
   userId: string
+  profileId: string | null
 }
 
 export interface AuthUser {
@@ -84,6 +85,12 @@ export interface Bill {
     dateTime: string
     dentist: { firstName: string; lastName: string }
   }
+}
+
+export interface NavigationItem {
+  to: string
+  label: string
+  description: string
 }
 
 export interface RegisterDentistInput {
