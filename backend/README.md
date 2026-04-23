@@ -42,6 +42,12 @@ Copy `.env.example` and set the following:
 | `EMAIL_FROM` | From address used in outgoing emails |
 | `PORT` | Server port (default `3000`) |
 
+## API documentation
+
+Interactive API docs are served by Swagger UI at `http://localhost:<PORT>/api-docs/` (e.g. `http://localhost:3030/api-docs/` with the default `.env`).
+
+The raw OpenAPI 3.0 spec is available as JSON at `/api-docs.json`.
+
 ## API
 
 All routes are prefixed `/api/`.
